@@ -96,7 +96,6 @@ class SpectralMixture(Kern):
         # define tau[i,j] = X[i] - X2[j] \in \RR^{X.shape[1]}
         # so tau.shape == (m,n,p)
         tau = X[:,np.newaxis,:] - X2
-        K = np.zeros_like(tau)
 
         # tau(m,n,p) tensordot means(p,q) -> dot_prod(m,n,q)
         # where dot_prod[i,j,k] = tau[i,j]'*means[:,k]
