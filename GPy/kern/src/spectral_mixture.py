@@ -21,14 +21,14 @@ class SpectralMixture(Kern):
 
     .. math::
 
-        k(\\tau) = \sum_q w_q \\cos(2\\pi \\tau^T\\mu_q) \\prod_p \\exp(-2\\pi^2 \\tau^2 v_q^{(p)})
+        k(\\tau) = \sum_q w_q \\cos(2\\pi \\tau^{\\mathrm{T}}\\mu_q) \\prod_p \\exp(-2\\pi^2 \\tau_p^2 v_q^{(p)})
 
     where
 
         \\tau = x - x',
         \\mu_q  is the mean of the q-th frequency space Gaussian
         w_q     is the weight of the q-th Gaussian
-        v_q   = diag(\\Sigma_q) is the diagonal covariance matrix
+        v_q   = diag(\\Sigma_q) is the _diagonal_ covariance matrix
         p       is each dimension in the input space
 
     By definition, k is stationary.
@@ -99,12 +99,12 @@ class SpectralMixture(Kern):
 
         # tau(m,n,p) tensordot means(p,q) -> dot_prod(m,n,q)
         # where dot_prod[i,j,k] = tau[i,j]'*means[:,k]
-        K = np.cos(2*np.pi*np.tensordot(tau, mu, axes=1)) *\
-            np.exp(-2 * np.pi**2 * np.tensordot(tau**2, v, axes=1))
+        K = np.cos(2*np.pi*np.tensordot(tau, self.means, axes=1)) * \
+            np.exp(-2 * np.pi**2 * np.tensordot(tau**2, self.variances, axes=1))
 
         # return the weighted sum of the individual
         # Gaussian kernels, dropping the third index
-        return np.tensordot(K, w, axis=1).squeeze(axis=(2,))
+        return np.tensordot(K, self.w, axis=1).squeeze(axis=(2,))
 
     def Kdiag(self, X):
         """
@@ -117,7 +117,7 @@ class SpectralMixture(Kern):
         Note that we know
 
         .. math::
-            \\tau = 0,
+            \\tau = 0, 
 
         so the kernel simplifies to 
 
@@ -128,7 +128,7 @@ class SpectralMixture(Kern):
         :type  X: array-like
         :rtype: an [n x 1] np.ndarray
         """
-        return self.w.sum() * np.ones((X.shape[0]))
+        return np.full((X.shape[0],1), self.w.sum())
 
     def update_gradients_full(self, dL_dK, X, X2=None):
         """
@@ -140,4 +140,15 @@ class SpectralMixture(Kern):
         :param dL_dK: the derivative of the marginal likelihood with
                       respect to the kernel output
         """
-        pass
+        if X2 is None:
+            X2 = X
+
+        tau = X[:,np.newaxis,:] - X2
+        K = np.cos(2*np.pi*np.tensordot(tau, self.means, axes=1)) * \
+            np.exp(-2 * np.pi**2 * np.tensordot(tau**2, self.variances, axes=1))
+
+        self.w.gradient = (dL_dK[:,:,np.newaxis] * K).sum(axis=(0,1)).reshape(-1,1)
+
+        # TODO(conner:jun-26-2016)
+        self.means.gradient = None
+        self.variances.gradient = None
