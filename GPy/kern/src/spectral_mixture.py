@@ -149,6 +149,11 @@ class SpectralMixture(Kern):
 
         self.w.gradient = (dL_dK[:,:,np.newaxis] * K).sum(axis=(0,1)).reshape(-1,1)
 
-        # TODO(conner:jun-26-2016)
-        self.means.gradient = None
-        self.variances.gradient = None
+        K = (self.w[:,:,np.newaxis] * (np.sin(2*np.pi*np.tensordot(tau, self.means, axes=1)) * \
+            np.exp(-2 * np.pi**2 * np.tensordot(tau**2, self.variances, axes=1))).T).T
+        self.variances.gradient = np.einsum('ijk,ijl->kl', -2*np.pi*tau, dK_dL[:,:,None] * K)
+
+        K = (w[:,:,np.newaxis] * (np.cos(2*np.pi*np.tensordot(tau, means, axes=1)) * \
+            np.exp(-2 * np.pi**2 * np.tensordot(tau**2, variances, axes=1))).T).T
+        self.means.gradient = np.einsum('ijk,ijl->kl', -2 * np.pi**2 * tau**2,
+                                                       dK_dL[:,:,None] * K)
