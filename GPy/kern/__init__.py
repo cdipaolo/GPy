@@ -10,6 +10,7 @@ from .src.add import Add
 from .src.prod import Prod
 from .src.rbf import RBF
 from .src.linear import Linear, LinearFull
+from .src.spectral_mixture import SpectralMixture
 from .src.static import Bias, White, Fixed, WhiteHeteroscedastic, Precomputed
 from .src.brownian import Brownian
 from .src.stationary import Exponential, OU, Matern32, Matern52, ExpQuad, RatQuad, Cosine
