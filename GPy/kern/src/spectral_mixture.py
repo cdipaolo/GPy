@@ -44,7 +44,7 @@ class SpectralMixture(Kern):
     :rtype: kernel object
     """
 
-    def __init__(self, q, w=None, means=None, variances=None, input_dim=1,
+    def __init__(self, q=1, w=None, means=None, variances=None, input_dim=1,
                  active_dims=None, name='SpectralMixture'):
         super(SpectralMixture, self).__init__(input_dim, active_dims, name)
 
@@ -62,7 +62,7 @@ class SpectralMixture(Kern):
             variances = np.ones((self.p, q))
         else:
             # check that the dimensions are correct
-            assert variance.shape == (self.p,q), 'Variance matrix must be [p x q]'
+            assert variances.shape == (self.p,q), 'Variance matrix must be [p x q]'
 
         if means is None:
             # randomly instantiate the means
@@ -99,6 +99,7 @@ class SpectralMixture(Kern):
         # define tau[i,j] = X[i] - X2[j] \in \RR^{X.shape[1]}
         # so tau.shape == (m,n,p)
         tau = X[:,np.newaxis,:] - X2
+
 
         # tau(m,n,p) tensordot means(p,q) -> dot_prod(m,n,q)
         # where dot_prod[i,j,k] = tau[i,j]'*means[:,k]
