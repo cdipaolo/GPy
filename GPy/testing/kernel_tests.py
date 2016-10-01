@@ -160,7 +160,7 @@ def check_kernel_gradient_functions(kern, X=None, X2=None, output_ind=None, verb
     """
     pass_checks = True
     if X is None:
-        X = np.random.randn(10, kern.input_dim)
+        X = np.random.randn(15, kern.input_dim)
         if output_ind is not None:
             X[:, output_ind] = np.random.randint(kern.output_dim, X.shape[0])
     if X2 is None:
@@ -418,6 +418,11 @@ class KernelGradientTestsContinuous(unittest.TestCase):
 
     def test_RBF(self):
         k = GPy.kern.RBF(self.D-1, ARD=True)
+        k.randomize()
+        self.assertTrue(check_kernel_gradient_functions(k, X=self.X, X2=self.X2, verbose=verbose))
+
+    def test_spectral_mixture(self):
+        k = GPy.kern.SpectralMixture(q=5, input_dim=self.D-1)
         k.randomize()
         self.assertTrue(check_kernel_gradient_functions(k, X=self.X, X2=self.X2, verbose=verbose))
 
@@ -735,6 +740,101 @@ class Kernel_Psi_statistics_GradientTests(unittest.TestCase):
         from GPy.models import GradientChecker
         m = GradientChecker(f, df, self.qX.param_array.copy())
         self.assertTrue(m.checkgrad())
+
+
+class SpectralMixtureKernelTests(unittest.TestCase):
+
+    def setUp(self):
+        pass
+
+    def test_one_gaussian_one_dim(self):
+        q = 1
+        w = np.array([1.5]).reshape(-1,1)
+        means = np.array([0.5]).reshape(-1,1)
+        variances = np.array([1.0]).reshape(-1,1)
+        
+        k = GPy.kern.SpectralMixture(q=q, w=w, means=means, variances=variances)
+        X = np.linspace(-10, 10, 11).reshape(-1,1)
+        X2 = np.linspace(-10, 10, 23).reshape(-1,1)
+        
+        np.testing.assert_equal(k.Kdiag(X), float(w))
+
+        K = k.K(X, X2)
+        assert K.shape == (X.shape[0], X2.shape[0])
+
+        for i, x in enumerate(X):
+            for j, y in enumerate(X2):
+                x = np.array(x).reshape(1,1)
+                y = np.array(y).reshape(1,1)
+
+                np.testing.assert_almost_equal(
+                    k.K(x, y),
+                    K[i,j],
+                    err_msg='K(X[i],X2[j]) != K[i,j]',
+                )
+
+                np.testing.assert_almost_equal(
+                    k.K(x, y),
+                    w * np.exp(
+                        -2 * np.pi**2 * (x - y)**2 * variances
+                    ) * np.cos(
+                        2 * np.pi * (x-y) * means
+                    ),
+                    err_msg='K(x,y) != actual formula',
+                )
+
+    def test_two_gaussian_two_dim(self):
+        q = 2
+        w = np.array([1.5, 0.75]).reshape(-1,1)
+        means = np.array([[-0.3, -0.2], [0.5, 10.2]])
+        variances = np.array([[0.2, 4.2], [1.0, 0.01]])
+        
+        k = GPy.kern.SpectralMixture(q=q, w=w, means=means, variances=variances, input_dim=2)
+        X = np.hstack((
+            np.linspace(-10, 10, 11).reshape(-1,1),
+            np.linspace(5, 10, 11).reshape(-1,1),
+        ))
+        X2 = np.hstack((
+            np.linspace(-10, 10, 23).reshape(-1,1),
+            np.linspace(-3, 5, 23).reshape(-1,1),
+        ))
+        
+        np.testing.assert_equal(k.Kdiag(X), w.sum())
+
+        K = k.K(X, X2)
+        assert K.shape == (X.shape[0], X2.shape[0])
+
+        for i, x in enumerate(X):
+            assert k.K(x.reshape(1,-1)) == w.sum()
+
+            for j, y in enumerate(X2):
+                x = np.array(x).reshape(1,-1)
+                y = np.array(y).reshape(1,-1)
+
+                np.testing.assert_almost_equal(
+                    k.K(x, y),
+                    K[i,j],
+                    err_msg='K(X[i],X2[j]) != K[i,j]',
+                )
+
+                should = w[0] * np.exp(
+                    -2 * np.pi**2 * (x[0,0] - y[0,0])**2 * variances[0,0]
+                    -2 * np.pi**2 * (x[0,1] - y[0,1])**2 * variances[1,0]
+                ) * np.cos(
+                    2 * np.pi * (x - y) @ means[:,0].reshape(-1,1)
+                ) + w[1] * np.exp(
+                    -2 * np.pi**2 * (x[0,0] - y[0,0])**2 * variances[0,1]
+                    -2 * np.pi**2 * (x[0,1] - y[0,1])**2 * variances[1,1]
+                ) * np.cos(
+                    2 * np.pi * (x - y) @ means[:,1].reshape(-1,1)
+                )
+
+                np.testing.assert_almost_equal(
+                    k.K(x, y),
+                    should,
+                    err_msg='K(x,y) != actual formula',
+                )
+
 
 if __name__ == "__main__":
     print("Running unit tests, please be (very) patient...")

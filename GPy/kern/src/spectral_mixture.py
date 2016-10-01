@@ -66,14 +66,14 @@ class SpectralMixture(Kern):
 
         if means is None:
             # randomly instantiate the means
-            means = np.random.randn(self.p, q)
+            means = np.random.rand(self.p, q)
         else:
             # check that the dimensions are correct
             assert means.shape == (self.p, q), 'Means matrix must be [p x q]'
 
         self.q = q
         self.w = Param('weights', w, Logexp())
-        self.means = Param('means', means)
+        self.means = Param('means', means, Logexp())
         self.variances = Param('variances', variances, Logexp())
         self.link_parameters(self.w, self.means, self.variances)
 
@@ -158,7 +158,7 @@ class SpectralMixture(Kern):
         :param X: a [n x p] matrix input
         :type  X: array-like
         """
-        self.w.gradient = np.full(self.w.shape, dL_dKdiag.sum())
+        self.w.gradient = dL_dKdiag.shape[0] * dL_dKdiag.sum() * np.ones_like(self.w)
         self.means.gradient = np.zeros_like(self.means)
         self.variances.gradient = np.zeros_like(self.variances)
 
@@ -185,15 +185,20 @@ class SpectralMixture(Kern):
         tau = X[:,np.newaxis,:] - X2
         K = np.cos(2*np.pi*np.tensordot(tau, self.means, axes=1)) * \
             np.exp(-2 * np.pi**2 * np.tensordot(tau**2, self.variances, axes=1))
-
         self.w.gradient = (dL_dK[:,:,np.newaxis] * K).sum(axis=(0,1)).reshape(-1,1)
 
         K = (self.w[:,:,np.newaxis] * (np.sin(2*np.pi*np.tensordot(tau, self.means, axes=1)) * \
             np.exp(-2 * np.pi**2 * np.tensordot(tau**2, self.variances, axes=1))).T).T
-        self.variances.gradient = np.einsum('ijk,ijl->kl', -2*np.pi*tau,
-                                                           dL_dK[:,:,np.newaxis] * K)
+        self.means.gradient = np.einsum(
+            'ijk,ijl->kl',
+            -2*np.pi*tau,
+            dL_dK[:,:,np.newaxis] * K,
+        )
 
         K = (self.w[:,:,np.newaxis] * (np.cos(2*np.pi*np.tensordot(tau, self.means, axes=1)) * \
             np.exp(-2 * np.pi**2 * np.tensordot(tau**2, self.variances, axes=1))).T).T
-        self.means.gradient = np.einsum('ijk,ijl->kl', -2 * np.pi**2 * tau**2,
-                                                       dL_dK[:,:,np.newaxis] * K)
+        self.variances.gradient = np.einsum(
+            'ijk,ijl->kl',
+            -2 * np.pi**2 * tau**2,
+            dL_dK[:,:,np.newaxis] * K
+        )
